@@ -169,9 +169,9 @@ class SessionTest {
         val session = Session("https://www.mozilla.org")
         session.register(observer)
 
-        session.triggeredByUserInteraction = true
+        session.loadRequestTriggeredByUserInteraction = true
 
-        assertTrue(session.triggeredByUserInteraction)
+        assertTrue(session.loadRequestTriggeredByUserInteraction)
         verify(observer, times(1)).onLoadRequest(eq(session), eq(true))
         verifyNoMoreInteractions(observer)
     }

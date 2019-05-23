@@ -440,7 +440,7 @@ class EngineObserverTest {
         observer.onLoadRequest(triggeredByUserInteraction = true)
 
         assertEquals("", session.searchTerms)
-        assertTrue(session.triggeredByUserInteraction)
+        assertTrue(session.loadRequestTriggeredByUserInteraction)
     }
 
     @Test
@@ -452,6 +452,6 @@ class EngineObserverTest {
         observer.onLoadRequest(triggeredByUserInteraction = false)
 
         assertEquals("Mozilla Foundation", session.searchTerms)
-        assertFalse(session.triggeredByUserInteraction)
+        assertFalse(session.loadRequestTriggeredByUserInteraction)
     }
 }

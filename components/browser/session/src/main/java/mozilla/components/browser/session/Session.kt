@@ -200,7 +200,7 @@ class Session(
     /**
      * Set when a load request is received, indicating if the user was involved in the interaction.
      */
-    var triggeredByUserInteraction: Boolean by Delegates.observable(false) {
+    var loadRequestTriggeredByUserInteraction: Boolean by Delegates.observable(false) {
         _, _, new -> notifyObservers { onLoadRequest(this@Session, new) }
     }
 
