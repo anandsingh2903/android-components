@@ -40,22 +40,24 @@ class AppLinksFeature(
     private val context: Context,
     private val sessionManager: SessionManager,
     private val sessionId: String? = null,
-    private val interceptLinkClicks = false,
+    private val interceptLinkClicks: Boolean = false,
     private val fragmentManager: FragmentManager? = null,
     private var dialog: RedirectDialogFragment = SimpleRedirectDialogFragment.newInstance(),
-    private val useCases = AppLinksUseCases(context)
-) : SelectionAwareSessionObserver(sessionManager), LifecycleAwareFeature {
+    private val useCases: AppLinksUseCases = AppLinksUseCases(context)
+) : LifecycleAwareFeature {
 
-    override fun onLoadRequest(session: Session, triggeredByUserInteraction: Boolean) {
-        if (!triggeredByUserInteraction) {
-            return
-        }
+    private val observer: SelectionAwareSessionObserver = object : SelectionAwareSessionObserver(sessionManager) {
+        override fun onLoadRequest(session: Session, triggeredByUserInteraction: Boolean) {
+            if (!triggeredByUserInteraction) {
+                return
+            }
 
-        val url = session.url
-        val redirect = useCases.appLinkRedirect.invoke(url)
+            val url = session.url
+            val redirect = useCases.appLinkRedirect.invoke(url)
 
-        if (redirect.hasExternalApp()) {
-            showDialog(redirect, session)
+            if (redirect.hasExternalApp()) {
+                handleRedirect(redirect, session)
+            }
         }
     }
 
@@ -64,16 +66,24 @@ class AppLinksFeature(
      */
     override fun start() {
         if (interceptLinkClicks) {
-            observeIdOrSelected(sessionId)
+            observer.observeIdOrSelected(sessionId)
         }
         findPreviousDialogFragment()?.let {
-            reAttachOnStartDownloadListener(it)
+            reAttachOnConfirmRedirectListener(it)
+        }
+    }
+
+    override fun stop() {
+        if (interceptLinkClicks) {
+            observer.stop()
         }
     }
 
     @SuppressLint("MissingPermission")
-    private fun showDialog(redirect: AppLinkRedirect, session: Session) {
-        val intent = redirect.appIntent ?: return
+    private fun handleRedirect(redirect: AppLinkRedirect, session: Session) {
+        if (!redirect.hasExternalApp()) {
+            handleFallback(redirect, session)
+        }
 
         val doOpenApp = {
             useCases.openAppLink.invoke(redirect)
@@ -88,9 +98,7 @@ class AppLinksFeature(
         dialog.onConfirmRedirect = doOpenApp
         dialog.onDismiss(object : DialogInterface {
             override fun dismiss() {
-                redirect.webUrl?.let {
-                    sessionManager.getOrCreateEngineSession(session).loadUrl(it)
-                }
+                handleFallback(redirect, session)
             }
 
             override fun cancel() {
@@ -103,18 +111,19 @@ class AppLinksFeature(
         }
     }
 
+    private fun handleFallback(redirect: AppLinkRedirect, session: Session) {
+        redirect.webUrl?.let {
+            sessionManager.getOrCreateEngineSession(session).loadUrl(it)
+        }
+    }
+
     private fun isAlreadyADialogCreated(): Boolean {
         return findPreviousDialogFragment() != null
     }
 
-    private fun reAttachOnStartDownloadListener(previousDialog: RedirectDialogFragment?) {
+    private fun reAttachOnConfirmRedirectListener(previousDialog: RedirectDialogFragment?) {
         previousDialog?.apply {
             this@AppLinksFeature.dialog = this
-            val selectedSession = sessionManager.selectedSession
-            selectedSession?.download?.consume {
-                onDownload(selectedSession, it)
-                false
-            }
         }
     }
 
