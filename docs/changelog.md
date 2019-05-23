@@ -46,6 +46,10 @@ permalink: /changelog/
   * Added ability for `SuggestionProvider` to return an initial list of suggestions from `onInputStarted()`.
   * Modified `ClipboardSuggestionProvider` to already return a suggestions from `onInputStarted()` if the clipboard contains a URL.
 
+* **feature-app-links**
+  *  🆕 New component: to detect and open links in other non-browser apps.
+  * Use cases to parse intent:// URLs, query the package manager for activities and generate Play store URLs. 
+
 # 0.53.0
 
 * [Commits](https://github.com/mozilla-mobile/android-components/compare/v0.52.0...v0.53.0)
