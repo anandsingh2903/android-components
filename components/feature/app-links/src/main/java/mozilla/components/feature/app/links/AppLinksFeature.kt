@@ -31,16 +31,20 @@ import mozilla.components.support.base.feature.LifecycleAwareFeature
  * It provides a [RequestInterceptor] to do the detection and asking of consent.
  *
  * It requires: a [Context], and a [FragmentManager].
+ *
+ * A [Boolean] flag is provided at construction to allow the feature and use cases to be landed without
+ * adjoining UI. The UI will be activated in https://github.com/mozilla-mobile/android-components/issues/2974
+ * and https://github.com/mozilla-mobile/android-components/issues/2975.
  */
 class AppLinksFeature(
     private val context: Context,
     private val sessionManager: SessionManager,
     private val sessionId: String? = null,
+    private val interceptLinkClicks = false,
     private val fragmentManager: FragmentManager? = null,
-    private var dialog: RedirectDialogFragment = SimpleRedirectDialogFragment.newInstance()
-) : SelectionAwareSessionObserver(sessionManager), LifecycleAwareFeature {
-
+    private var dialog: RedirectDialogFragment = SimpleRedirectDialogFragment.newInstance(),
     private val useCases = AppLinksUseCases(context)
+) : SelectionAwareSessionObserver(sessionManager), LifecycleAwareFeature {
 
     override fun onLoadRequest(session: Session, triggeredByUserInteraction: Boolean) {
         if (!triggeredByUserInteraction) {
@@ -59,8 +63,9 @@ class AppLinksFeature(
      * Starts observing app links on the selected session.
      */
     override fun start() {
-        observeIdOrSelected(sessionId)
-
+        if (interceptLinkClicks) {
+            observeIdOrSelected(sessionId)
+        }
         findPreviousDialogFragment()?.let {
             reAttachOnStartDownloadListener(it)
         }
