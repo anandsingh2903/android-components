@@ -53,7 +53,7 @@ class AppLinksFeature(
             }
 
             val url = session.url
-            val redirect = useCases.appLinkRedirect.invoke(url)
+            val redirect = useCases.interceptedAppLinkRedirect.invoke(url)
 
             if (redirect.hasExternalApp()) {
                 handleRedirect(redirect, session)

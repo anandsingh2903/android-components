@@ -31,13 +31,14 @@ private const val MARKET_INTENT_URI_PACKAGE_PREFIX = "market://details?id="
  */
 class AppLinksUseCases(
     private val context: Context,
-    browserPackageNames: Set<String>? = null
+    browserPackageNames: Set<String>? = null,
+    unguessableWebUrl: String = "https://${UUID.randomUUID()}.net"
 ) {
     @VisibleForTesting
     val browserPackageNames: Set<String>
 
     init {
-        this.browserPackageNames = browserPackageNames ?: findExcludedPackages()
+        this.browserPackageNames = browserPackageNames ?: findExcludedPackages(unguessableWebUrl)
     }
 
     private fun findActivities(intent: Intent): List<ResolveInfo> {
@@ -45,12 +46,10 @@ class AppLinksUseCases(
             .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY) ?: emptyList()
     }
 
-    private fun findExcludedPackages(): Set<String> {
+    private fun findExcludedPackages(randomWebURLString: String): Set<String> {
         // We generate a URL is not likely to be opened by a native app
         // but will fallback to a browser.
         // In this way, we're looking for only the browsers — including us.
-        val randomWebURLString = "https://${UUID.randomUUID()}.net"
-
         return findActivities(Intent.parseUri(randomWebURLString, 0))
             .map { it.activityInfo.packageName }
             .toHashSet()
@@ -62,11 +61,20 @@ class AppLinksUseCases(
      *
      * It will also provide a fallback.
      */
-    inner class GetAppLinkRedirect internal constructor() {
+    inner class GetAppLinkRedirect internal constructor(
+        private val includeHttpAppLinks: Boolean = false,
+        private val includeInstallAppFallback: Boolean = false
+    ) {
         fun invoke(url: String): AppLinkRedirect {
             val intents = createBrowsableIntents(url)
-            val appIntent = intents.firstOrNull {
-                getNonBrowserActivities(it).isNotEmpty()
+            val appIntent = if (includeHttpAppLinks) {
+                intents.firstOrNull {
+                    getNonBrowserActivities(it).isNotEmpty()
+                }
+            } else {
+                intents.filter { it.data?.isHttpOrHttps ?: false }.firstOrNull {
+                    getNonBrowserActivities(it).isNotEmpty()
+                }
             }
 
             val webUrls = intents.mapNotNull {
@@ -94,15 +102,21 @@ class AppLinksUseCases(
                 null -> emptyList()
                 true -> listOf(intent)
                 false -> {
-                    val fallback = intent.getStringExtra(EXTRA_BROWSER_FALLBACK_URL)?.let {
-                        createBrowsableIntents(it)
-                    } ?: emptyList()
+                    // Non http[s] schemes:
 
-                    val marketplaceIntent = intent.`package`?.let {
-                        Intent.parseUri(MARKET_INTENT_URI_PACKAGE_PREFIX + it, 0)
+                    val fallback = intent.getStringExtra(EXTRA_BROWSER_FALLBACK_URL)?.let {
+                        Intent.parseUri(it, 0)
                     }
 
-                    return listOf(intent) + fallback + listOfNotNull(marketplaceIntent)
+                    val marketplaceIntent = intent.`package`?.let {
+                        if (includeInstallAppFallback) {
+                            Intent.parseUri(MARKET_INTENT_URI_PACKAGE_PREFIX + it, 0)
+                        } else {
+                            null
+                        }
+                    }
+
+                    return listOfNotNull(intent, fallback, marketplaceIntent)
                 }
             }
         }
@@ -129,5 +143,16 @@ class AppLinksUseCases(
     }
 
     val openAppLink: OpenAppLinkRedirect by lazy { OpenAppLinkRedirect(context) }
-    val appLinkRedirect: GetAppLinkRedirect by lazy { GetAppLinkRedirect() }
+    val interceptedAppLinkRedirect: GetAppLinkRedirect by lazy {
+        GetAppLinkRedirect(
+            includeHttpAppLinks = false,
+            includeInstallAppFallback = false
+        )
+    }
+    val appLinkRedirect: GetAppLinkRedirect by lazy {
+        GetAppLinkRedirect(
+            includeHttpAppLinks = true,
+            includeInstallAppFallback = false
+        )
+    }
 }
